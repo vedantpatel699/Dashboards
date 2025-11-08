@@ -1,18 +1,98 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" class="h-full">
 <head>
-    <title>Engineering Dashboards</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engineering Dashboards | Welcome</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Reusing the Green Theme variables for consistency */
+        :root {
+            --background: #e8f5e9;       /* Light green background */
+            --surface-container-low: #ffffff; /* White for sidebar/cards */
+            --on-surface: #37474f;       /* Dark greenish-gray text */
+            --on-surface-variant: #546e7a;/* Medium greenish-gray text (labels) */
+            --primary: #2e7d32;          /* Darker Green for primary actions */
+            --secondary: #eceff1;        /* Light Gray for background */
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        body {
+            background-color: var(--background);
+            color: var(--on-surface);
+            font-family: 'Roboto', 'Arial', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container-card {
+            background-color: var(--surface-container-low);
+            box-shadow: var(--shadow-md);
+        }
+        .dashboard-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            background-color: var(--secondary);
+            border: 1px solid #cfd8dc;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(46, 125, 50, 0.1), 0 4px 6px -2px rgba(46, 125, 50, 0.05); /* Greenish shadow on hover */
+        }
+        .furnace-bg { background-color: #a5d6a7; } /* Light Green */
+        .exchanger-bg { background-color: #81c784; } /* Medium Green */
+        
+        .card-link {
+            text-decoration: none; /* Remove underline from links */
+        }
+    </style>
 </head>
-<body>
-    <h1>Welcome to My Engineering Models</h1>
-    <p>Please select a dashboard to view:</p>
-    <ul>
-        <li>
-            <a href="HeatExchangerModel%20Rev9.html">Heat Exchanger Performance Model</a>
-        </li>
-        <li>
-            <a href="Furnace%20Efficiency%20Model%20Rev2.html">Furnace Efficiency Dashboard</a>
-        </li>
-    </ul>
+<body class="p-6">
+
+    <div class="container-card max-w-4xl w-full p-8 md:p-12 rounded-xl">
+        
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-bold text-primary mb-2">Engineering Performance Models</h1>
+            <p class="text-lg text-on-surface-variant max-w-2xl mx-auto">
+                Welcome to the digital showcase of dynamic process modeling dashboards.
+                Select a model below to explore operational calculations and performance metrics.
+            </p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <a href="HeatExchangerModel%20Rev9.html" class="card-link block">
+                <div class="dashboard-card p-6 rounded-lg text-on-surface h-full">
+                    <div class="w-full h-1.5 exchanger-bg rounded mb-4"></div>
+                    <h2 class="text-2xl font-semibold mb-2">Heat Exchanger Performance</h2>
+                    <p class="text-on-surface-variant mb-4">
+                        Analyze shell-and-tube heat exchanger efficiency, LMTD, fouling factor (R_f), 
+                        and compare calculated duty against design specifications.
+                    </p>
+                    <span class="text-sm font-medium text-primary inline-flex items-center">
+                        Go to Dashboard &rarr;
+                    </span>
+                </div>
+            </a>
+
+            <a href="Furnace%20Efficiency%20Model%20Rev2.html" class="card-link block">
+                <div class="dashboard-card p-6 rounded-lg text-on-surface h-full">
+                    <div class="w-full h-1.5 furnace-bg rounded mb-4"></div>
+                    <h2 class="text-2xl font-semibold mb-2">Furnace Efficiency Model</h2>
+                    <p class="text-on-surface-variant mb-4">
+                        Calculate furnace thermal efficiency, combustion air requirements,
+                        and heat balance based on fuel composition and operational temperatures.
+                    </p>
+                    <span class="text-sm font-medium text-primary inline-flex items-center">
+                        Go to Dashboard &rarr;
+                    </span>
+                </div>
+            </a>
+        </div>
+
+        <footer class="mt-10 pt-6 border-t border-gray-200 text-center text-xs text-on-surface-variant">
+            Built by vedantpatel699 using HTML, JavaScript, and Tailwind CSS on GitHub Pages.
+        </footer>
+
+    </div>
 </body>
 </html>
