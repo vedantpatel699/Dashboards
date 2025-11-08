@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heat Exchanger Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Green Theme */
+        :root {
+            --background: #e8f5e9; --surface-container-low: #ffffff;
+            --surface-container: #ffffff; --on-surface: #37474f;
+            --on-surface-variant: #546e7a; --primary: #2e7d32;
+            --primary-hover: #1b5e20; --secondary: #eceff1;
+            --secondary-hover: #cfd8dc; --on-secondary: #37474f;
+            --error: #c62828; --error-container: #ffcdd2;
+            --outline: #b0bec5; --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+        }
+        body { background-color: var(--background); color: var(--on-surface); font-family: 'Roboto', 'Arial', sans-serif; }
+        .sidebar { background-color: var(--surface-container-low); box-shadow: var(--shadow-md); border-right: 1px solid var(--outline); }
+        .sidebar h1, .sidebar h2 { color: var(--on-surface); font-weight: 500; }
+        .sidebar label { color: var(--on-surface-variant); font-size: 0.875rem; }
+        .sidebar input[type=number], .sidebar select {
+            background-color: var(--surface-container); border: 1px solid var(--outline);
+            color: var(--on-surface); border-radius: 4px; padding: 0.5rem 0.75rem;
+            box-shadow: none; height: 38px; width: 100%;
+        }
+        .results-panel { background-color: var(--surface-container); }
+        .results-panel h2, .results-panel h3 { color: var(--on-surface); font-weight: 500; }
+        .metric-card, .table-card {
+             background-color: var(--surface-container-low); border: 1px solid var(--outline);
+             border-radius: 8px; box-shadow: none;
+         }
+        .metric-label, .table-label { color: var(--on-surface-variant); }
+        .metric-value, .table-value { color: var(--on-surface); }
+        .duty-value-hot { color: #c62828; } .duty-value-cold { color: #1565c0; }
+        .duty-value-design { color: var(--on-surface-variant); }
+        .border-subtle { border-color: var(--outline); opacity: 0.7; }
+        .button {
+            padding: 0.5rem 1rem; border-radius: 18px; font-weight: 500; text-align: center;
+            transition: background-color 0.2s; border: 1px solid transparent; cursor: pointer;
+            height: 38px; display: flex; align-items: center; justify-content: center;
+        }
+        .button-secondary { background-color: var(--secondary); color: var(--on-secondary); border-color: var(--outline); }
+        .button-secondary:hover { background-color: var(--secondary-hover); }
+        .reset-button {
+            padding: 0.25rem 0.75rem; font-size: 0.75rem; background-color: var(--secondary);
+            color: var(--on-secondary); border-radius: 12px; transition: background-color 0.2s;
+            line-height: 1; white-space: nowrap; border: 1px solid var(--outline); cursor: pointer; height: 24px;
+        }
+        .reset-button:hover { background-color: var(--secondary-hover); }
+        input[type=number] { -moz-appearance: textfield; text-align: left; }
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        #errorDisplay {
+            color: var(--error); background-color: var(--error-container);
+            border: 1px solid var(--error); padding: 0.75rem;
+            border-radius: 8px; margin-top: 1rem; font-size: 0.875rem;
+            white-space: pre-wrap; max-height: 150px; overflow-y: auto;
+        }
+        .input-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem; /* 4px */
+        }
+    </style>
+</head>
+<body class="h-full font-sans leading-normal text-sm">
+    
+    <!-- Hidden file input for JSON import -->
+    <input type="file" id="jsonFileInput" accept=".json" class="hidden">
+
+    <div class="flex flex-col lg:flex-row h-full">
+
+        <!-- Sidebar / Control Panel -->
+        <div class="sidebar lg:w-1/3 xl:w-1/4 h-full overflow-y-auto p-6">
+            <h1 class="text-xl font-medium mb-6">Exchanger Performance</h1>
+
+            <!-- Exchanger Properties -->
+            <h2 class="text-lg font-medium mb-4">1. Exchanger Properties</h2>
+            <div class="space-y-4 mb-6">
+                <!-- Import/Export Buttons -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="importJsonBtn" class="button button-secondary text-sm">Import Inputs</button>
+                    <button id="exportJsonBtn" class="button button-secondary text-sm">Export Inputs</button>
+                </div>
+                <div id="jsonFileInfo" class="text-xs text-gray-500"></div>
+
+                <div>
+                    <div class="input-header">
+                        <label for="N_shell-input" class="block text-sm font-medium">Number of Shell Passes (N)</label>
+                        <button class="reset-button" data-input-id="N_shell">Reset</button>
+                    </div>
+                    <input type="number" id="N_shell-input" step="1" min="1">
+                    <label class="text-xs text-gray-500"> (Assumes 2N tube passes, e.g., 2, 4, 6...)</label>
+                </div>
+                <div>
+                    <div class="input-header">
+                        <label for="Area-input" class="block text-sm font-medium">Heat Transfer Area [m²]</label>
+                        <button class="reset-button" data-input-id="Area">Reset</button>
+                    </div>
+                    <input type="number" id="Area-input" step="10">
+                </div>
+                <div>
+                    <div class="input-header">
+                        <label for="U_clean-input" class="block text-sm font-medium">Clean U-Value (U_clean) [W/m²K]</label>
+                        <button class="reset-button" data-input-id="U_clean">Reset</button>
+                    </div>
+                    <input type="number" id="U_clean-input" step="50">
+                </div>
+                 <div>
+                    <div class="input-header">
+                        <label for="Design_Q-input" class="block text-sm font-medium">Design Heat Duty [MW]</label>
+                        <button class="reset-button" data-input-id="Design_Q">Reset</button>
+                    </div>
+                    <input type="number" id="Design_Q-input" step="0.1">
+                </div>
+            </div>
+
+            <!-- Hot Stream Inputs -->
+            <h2 class="text-lg font-medium mb-4">2. Hot Stream Inputs</h2>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-3 mb-6">
+                <div>
+                    <div class="input-header">
+                        <label for="Th_in-input" class="block text-sm font-medium">Inlet Temp [°C]</label>
+                        <button class="reset-button" data-input-id="Th_in">Reset</button>
+                    </div>
+                    <input type="number" id="Th_in-input" step="1">
+                </div>
+                <div>
+                    <div class="input-header">
+                        <label for="Th_out-input" class="block text-sm font-medium">Outlet Temp [°C]</label>
+                        <button class="reset-button" data-input-id="Th_out">Reset</button>
+                    </div>
+                    <input type="number" id="Th_out-input" step="1">
+                </div>
+                <div>
+                    <div class="input-header">
+                        <label for="mh-input" class="block text-sm font-medium">Mass Flow [kg/s]</label>
+                        <button class="reset-button" data-input-id="mh">Reset</button>
+                    </div>
+                    <input type="number" id="mh-input" step="0.1">
+                </div>
+                <div>
+                    <div class="input-header">
+                        <label for="Cph-input" class="block text-sm font-medium">Spec. Heat [kJ/kg·K]</label>
+                        <button class="reset-button" data-input-id="Cph">Reset</button>
+                    </div>
+                    <input type="number" id="Cph-input" step="0.01">
+                </div>
+            </div>
+
+            <!-- Cold Stream Inputs -->
+            <h2 class="text-lg font-medium mb-4">3. Cold Stream Inputs</h2>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+                 <div>
+                    <div class="input-header">
+                        <label for="Tc_in-input" class="block text-sm font-medium">Inlet Temp [°C]</label>
+                        <button class="reset-button" data-input-id="Tc_in">Reset</button>
+                    </div>
+                    <input type="number" id="Tc_in-input" step="1">
+                </div>
+                <div>
+                    <div class="input-header">
+                        <label for="Tc_out-input" class="block text-sm font-medium">Outlet Temp [°C]</label>
+                        <button class="reset-button" data-input-id="Tc_out">Reset</button>
+                    </div>
+                    <input type="number" id="Tc_out-input" step="1">
+                </div>
+                <div>
+                    <div class="input-header">
+                        <label for="mc-input" class="block text-sm font-medium">Mass Flow [kg/s]</label>
+                        <button class="reset-button" data-input-id="mc">Reset</button>
+                    </div>
+                    <input type="number" id="mc-input" step="0.1">
+                </div>
+                <div>
+                    <div class="input-header">
+                        <label for="Cpc-input" class="block text-sm font-medium">Spec. Heat [kJ/kg·K]</label>
+                        <button class="reset-button" data-input-id="Cpc">Reset</button>
+                    </div>
+                    <input type="number" id="Cpc-input" step="0.01">
+                </div>
+            </div>
+             <!-- Error Display Area -->
+             <div id="errorDisplay" class="mt-4" style="display: none;"></div>
+        </div>
+
+        <!-- Main Content / Results Panel -->
+        <div class="results-panel lg:w-2/3 xl:w-3/4 h-full overflow-y-auto p-8">
+            <h2 class="text-2xl font-medium mb-3">Results Dashboard</h2>
+            
+            <!-- Key Metrics -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="metric-card p-4 rounded-lg shadow">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">Fouling Factor (R_f)</div>
+                    <div id="res-R_f" class="metric-value text-2xl font-bold mt-1">...</div>
+                </div>
+                <div class="metric-card p-4 rounded-lg shadow">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">U_dirty (Calc) [W/m²K]</div>
+                    <div id="res-U_dirty" class="metric-value text-2xl font-bold mt-1">...</div>
+                </div>
+                 <div class="metric-card p-4 rounded-lg shadow">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">Effectiveness (ε)</div>
+                    <div id="res-Effectiveness" class="metric-value text-2xl font-bold mt-1">...</div>
+                </div>
+                <div class="metric-card p-4 rounded-lg shadow">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">LMTD [°C]</div>
+                    <div id="res-LMTD" class="metric-value text-2xl font-bold mt-1">...</div>
+                </div>
+            </div>
+
+            <!-- Duty Comparison -->
+            <div class="metric-card p-4 rounded-lg shadow mb-6">
+                <h3 class="text-lg font-medium mb-3">Calculated Duty vs. Design</h3>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <div class="metric-label text-xs font-medium uppercase tracking-wider">Calculated [MW]</div>
+                        <div id="res-Q_avg_MW" class="metric-value text-xl font-medium mt-1">...</div>
+                    </div>
+                    <div>
+                        <div class="metric-label text-xs font-medium uppercase tracking-wider">Design [MW]</div>
+                        <div id="res-Design_Q_MW" class="duty-value-design text-xl font-medium mt-1">...</div>
+                    </div>
+                    <div>
+                        <div class="metric-label text-xs font-medium uppercase tracking-wider">Difference [MW]</div>
+                        <div id="res-Duty_vs_Design_MW" class="metric-value text-xl font-medium mt-1">...</div>
+                    </div>
+                    <div>
+                        <div class="metric-label text-xs font-medium uppercase tracking-wider">Difference [%]</div>
+                        <div id="res-Duty_vs_Design_pct" class="metric-value text-xl font-medium mt-1">...</div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Data Tables -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="table-card p-5 rounded-lg shadow">
+                    <h3 class="text-lg font-medium mb-3">Heat Duties [kW]</h3>
+                    <ul class="space-y-2">
+                        <li class="flex justify-between text-sm"><span class="table-label">Q Hot Stream</span><span id="res-Q_hot_kW" class="duty-value-hot font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Q Cold Stream</span><span id="res-Q_cold_kW" class="duty-value-cold font-medium">...</span></li>
+                        <li class="pt-2 mt-2 border-t border-subtle"><span class="table-label font-medium">Q Average</span><span id="res-Q_avg_kW" class="table-value font-medium">...</span></li>
+                    </ul>
+                </div>
+                <div class="table-card p-5 rounded-lg shadow">
+                    <h3 class="text-lg font-medium mb-3">Calculated Factors</h3>
+                     <ul class="space-y-2">
+                        <li class="flex justify-between text-sm"><span class="table-label">LMTD F-Factor (F)</span><span id="res-F_factor" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Ratio P</span><span id="res-P_ratio" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Ratio R</span><span id="res-R_ratio" class="table-value font-medium">...</span></li>
+                    </ul>
+                </div>
+                <div class="table-card p-5 rounded-lg shadow">
+                    <h3 class="text-lg font-medium mb-3">Input Summary</h3>
+                    <ul class="space-y-2">
+                        <li class="flex justify-between text-sm"><span class="table-label">Shell Passes (N)</span><span id="res-N_shell" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Area [m²]</span><span id="res-Area" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">U_clean [W/m²K]</span><span id="res-U_clean" class="table-value font-medium">...</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // ==============================================================================
+        // JAVASCRIPT LOGIC
+        // ==============================================================================
+        
+        // --- Default Operational Values ---
+        const DEFAULTS = {
+            "Th_in": 150.0, "Th_out": 90.0, "mh": 10.0, "Cph": 2.1,
+            "Tc_in": 40.0, "Tc_out": 80.0, "mc": 6.3, "Cpc": 5.0,
+            "Area": 75.0, "Design_Q": 1.2, "U_clean": 1500.0,
+            "N_shell": 1
+        };
+        
+        // All input element IDs
+        const INPUT_IDS = [
+            "Th_in", "Th_out", "mh", "Cph", 
+            "Tc_in", "Tc_out", "mc", "Cpc",
+            "Area", "Design_Q", "U_clean",
+            "N_shell" // N_shell is now a number input
+        ];
+        const SELECT_IDS = []; // No selects
+        const EPSILON = 1e-9;
+
+        // ==============================================================================
+        // 2. CORE CALCULATION FUNCTIONS
+        // ==============================================================================
+
+        /**
+         * Calculates the LMTD Correction Factor (F).
+         * Uses general formulas from cheguide.com for N-Shell Passes.
+         */
+        function calculate_F_factor(P, R, N_shell) {
+            try {
+                if (P >= 1.0 || (P * R) >= 1.0) {
+                    throw new Error("Temperature cross-over (P or PR >= 1).");
+                }
+                
+                N_shell = parseInt(N_shell, 10); // Ensure it's a number
+                if (N_shell <= 0) {
+                    throw new Error("N_shell must be >= 1.");
+                }
+
+                // --- Case 1: R = 1 (Special Case) ---
+                if (Math.abs(R - 1.0) < EPSILON) {
+                    // P1 = P / (N - P*(N-1))
+                    const P1_den = N_shell - P * (N_shell - 1);
+                    if (Math.abs(P1_den) < EPSILON) throw new Error("Division by zero in P1 (R=1).");
+                    const P1 = P / P1_den;
+                    
+                    // S = (P1 * sqrt(2)) / (2 - P1)
+                    const S = (P1 * Math.sqrt(2)) / (2 - P1);
+                    if (Math.abs(S) >= 1) throw new Error("atanh(>=1) invalid.");
+                    
+                    // atanh(S)
+                    const atanh_S = 0.5 * Math.log((1 + S) / (1 - S));
+                    if (Math.abs(atanh_S) < EPSILON) return 1.0;
+                    
+                    // F = (P1 * sqrt(2)) / ((2 - P1) * atanh(S))
+                    return (P1 * Math.sqrt(2)) / ((2 - P1) * atanh_S);
+                }
+                
+                // --- Case 2: R != 1 (Standard Case) ---
+                
+                // X = ((1-PR)/(1-P))^(1/N)
+                const X_base = (1 - P * R) / (1 - P);
+                if (X_base < 0) throw new Error("Root of negative in X_base.");
+                const X = Math.pow(X_base, (1.0 / N_shell));
+
+                // P1 = (1 - X) / (R - X)
+                const P1_den = R - X;
+                if (Math.abs(P1_den) < EPSILON) throw new Error("Division by zero in P1 (R!=1).");
+                const P1 = (1 - X) / P1_den;
+                
+                // Now, use the N=1 formula with P1 and R
+                const A = Math.sqrt(Math.pow(R, 2) + 1);
+                
+                const B_ln_arg = (1 - P1) / (1 - P1 * R);
+                if (B_ln_arg <= 0) throw new Error("ln(negative) in B_ln_arg.");
+                const B_ln = Math.log(B_ln_arg);
+                
+                const C_ln_arg_num = 2 - P1 * (R + 1 - A);
+                const C_ln_arg_den = 2 - P1 * (R + 1 + A);
+                
+                if (C_ln_arg_num <= 0 || C_ln_arg_den <= 0) throw new Error("ln(negative) in C_ln_arg.");
+                
+                const C_ln = Math.log(C_ln_arg_num / C_ln_arg_den);
+                if (Math.abs(C_ln) < EPSILON) return 1.0;
+                
+                return (A * B_ln) / ((R - 1) * C_ln);
+
+            } catch (error) {
+                console.error(`F-Factor Error: ${error.message} (P=${P}, R=${R}, N=${N_shell})`);
+                displayError(`F-Factor Error: ${error.message} (P=${P.toFixed(3)}, R=${R.toFixed(3)}, N=${N_shell}).`);
+                return null;
+            }
+        }
+
+        /**
+         * Runs the full calculation logic
+         */
+        function run_model_with_inputs(inputs) {
+            const { Th_in, Th_out, mh, Cph, Tc_in, Tc_out, mc, Cpc, Area, Design_Q, U_clean, N_shell } = inputs;
+            
+            const results = {};
+            
+            // --- 2. Heat Duties (Q) ---
+            const Q_hot = mh * Cph * (Th_in - Th_out);
+            const Q_cold = mc * Cpc * (Tc_out - Tc_in);
+            const Q_avg = (Q_hot + Q_cold) / 2.0;
+            results.Q_hot_kW = Q_hot;
+            results.Q_cold_kW = Q_cold;
+            results.Q_avg_kW = Q_avg;
+
+            // --- 3. Effectiveness (epsilon) ---
+            const C_hot = mh * Cph;
+            const C_cold = mc * Cpc;
+            const C_min = Math.min(C_hot, C_cold);
+            const dT_max = Th_in - Tc_in;
+            if (dT_max <= 0) throw new Error("Hot Inlet Temp must be > Cold Inlet Temp.");
+            const Q_max = C_min * dT_max;
+            results.Effectiveness = (Q_max > 0) ? (Q_avg / Q_max) * 100.0 : 0; // Converted to %
+
+            // --- 4. LMTD ---
+            const dT1 = Th_in - Tc_out;
+            const dT2 = Th_out - Tc_in;
+            if (dT1 <= 0 || dT2 <= 0) throw new Error(`Temperature cross-over (dT1: ${dT1.toFixed(1)}°C, dT2: ${dT2.toFixed(1)}°C).`);
+            const lmtd = (Math.abs(dT1 - dT2) > EPSILON) ? (dT1 - dT2) / Math.log(dT1 / dT2) : dT1;
+            results.LMTD = lmtd;
+
+            // --- 5. F-Factor (Calculated) ---
+            const R_den = (Tc_out - Tc_in);
+            const P_den = (Th_in - Tc_in);
+            const R = (Math.abs(R_den) > EPSILON) ? (Th_in - Th_out) / R_den : 0;
+            const P = (Math.abs(P_den) > EPSILON) ? (Tc_out - Tc_in) / P_den : 0;
+            results.R_ratio = R;
+            results.P_ratio = P;
+
+            const F_factor = calculate_F_factor(P, R, N_shell);
+            if (F_factor === null) return null; // Error already displayed
+            results.F_factor = F_factor;
+            
+            // --- 6. U_dirty (Calculated) ---
+            const denominator = Area * F_factor * lmtd;
+            if (denominator === 0) throw new Error("Denominator (A*F*LMTD) is zero. Cannot calc U_dirty.");
+            const U_dirty = (Q_avg * 1000.0) / denominator; // Convert Q_avg (kW) to W
+            results.U_dirty = U_dirty;
+            
+            // --- 7. Fouling Factor (R_f) (Calculated) ---
+            if (U_dirty <= 0 || U_clean <= 0) throw new Error(`U_dirty (${U_dirty.toFixed(1)}) or U_clean (${U_clean}) is zero/negative.`);
+            const R_f = (1 / U_dirty) - (1 / U_clean);
+            results.R_f = R_f;
+            
+            // --- 8. Design Duty Comparison ---
+            const Q_avg_MW = Q_avg / 1000.0;
+            const Design_Q_MW = Design_Q;
+            const Duty_vs_Design_MW = Q_avg_MW - Design_Q_MW;
+            const Duty_vs_Design_pct = (Design_Q_MW != 0) ? (Duty_vs_Design_MW / Design_Q_MW) * 100.0 : 0;
+            
+            results.Q_avg_MW = Q_avg_MW;
+            results.Design_Q_MW = Design_Q_MW;
+            results.Duty_vs_Design_MW = Duty_vs_Design_MW;
+            results.Duty_vs_Design_pct = Duty_vs_Design_pct;
+
+            // Echo inputs
+            results.Area = Area;
+            results.U_clean = U_clean;
+            results.N_shell = N_shell;
+            
+            return results;
+        }
+
+        // ==============================================================================
+        // 3. DASHBOARD LOGIC & EVENT HANDLERS
+        // ==============================================================================
+        
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+        function initializeApp() {
+            setupEventListeners();
+            setInitialValues();
+            runCalculation();
+        }
+
+        function setupEventListeners() {
+            // Add change listener to all inputs
+            INPUT_IDS.forEach(id => {
+                document.getElementById(`${id}-input`).addEventListener('change', runCalculation);
+            });
+            SELECT_IDS.forEach(id => {
+                 document.getElementById(`${id}-select`).addEventListener('change', runCalculation);
+            });
+
+            // Reset buttons
+            document.querySelectorAll('.reset-button').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const inputId = event.target.getAttribute('data-input-id');
+                    resetToDefault(inputId);
+                });
+            });
+
+            // Import/Export
+            document.getElementById('importJsonBtn').addEventListener('click', () => {
+                document.getElementById('jsonFileInput').click();
+            });
+            document.getElementById('jsonFileInput').addEventListener('change', handleJsonFileSelect);
+            document.getElementById('exportJsonBtn').addEventListener('click', exportJsonFile);
+        }
+
+        function resetToDefault(inputId) {
+            if (DEFAULTS[inputId] === undefined) return;
+            const defaultValue = DEFAULTS[inputId];
+            
+            const input = document.getElementById(`${inputId}-input`);
+            if (input) {
+                input.value = defaultValue;
+            }
+            
+            const select = document.getElementById(`${inputId}-select`);
+            if (select) {
+                select.value = defaultValue;
+            }
+            
+            runCalculation();
+        }
+
+        function setInitialValues() {
+            INPUT_IDS.forEach(id => {
+                document.getElementById(`${id}-input`).value = DEFAULTS[id];
+            });
+            SELECT_IDS.forEach(id => {
+                // This is empty, but good practice
+            });
+            // Set N_shell separately since it's in INPUT_IDS now
+            document.getElementById('N_shell-input').value = DEFAULTS.N_shell;
+        }
+
+        function clearError() {
+            const errorDisplay = document.getElementById('errorDisplay');
+            errorDisplay.textContent = '';
+            errorDisplay.style.display = 'none';
+        }
+
+        function displayError(message) {
+            const errorDisplay = document.getElementById('errorDisplay');
+            errorDisplay.textContent = message;
+            errorDisplay.style.display = 'block';
+        }
+
+        function runCalculation() {
+             clearError();
+             try {
+                // 1. Get all inputs
+                const inputs = {};
+                INPUT_IDS.forEach(id => {
+                    inputs[id] = parseFloat(document.getElementById(`${id}-input`).value);
+                    if (isNaN(inputs[id])) {
+                        throw new Error(`Invalid input for ${id}.`);
+                    }
+                });
+                SELECT_IDS.forEach(id => {
+                    inputs[id] = document.getElementById(`${id}-select`).value;
+                });
+
+                // 2. Run calculations
+                const results = run_model_with_inputs(inputs);
+                
+                // 3. Update UI
+                if (results) {
+                    updateDashboardUI(results);
+                } else {
+                    clearResultsUI();
+                }
+             } catch (error) {
+                 console.error("Error in runCalculation:", error);
+                 displayError("Calculation Error: " + error.message);
+                 clearResultsUI();
+             }
+        }
+
+        function updateDashboardUI(results) {
+            const format = (val, decimals, unit = "") => {
+                if (val === null || val === undefined || !isFinite(val)) return "---";
+                const num = Number(val);
+                return num.toFixed(decimals) + unit;
+            };
+
+            // Key Metrics
+            document.getElementById('res-R_f').textContent = format(results.R_f, 6, " m²K/W");
+            document.getElementById('res-U_dirty').textContent = format(results.U_dirty, 1);
+            document.getElementById('res-Effectiveness').textContent = format(results.Effectiveness, 2, " %");
+            document.getElementById('res-LMTD').textContent = format(results.LMTD, 2, " °C");
+            
+            // Duty Comparison
+            document.getElementById('res-Q_avg_MW').textContent = format(results.Q_avg_MW, 3, " MW");
+            document.getElementById('res-Design_Q_MW').textContent = format(results.Design_Q_MW, 3, " MW");
+            document.getElementById('res-Duty_vs_Design_MW').textContent = format(results.Duty_vs_Design_MW, 3, " MW");
+            document.getElementById('res-Duty_vs_Design_pct').textContent = format(results.Duty_vs_Design_pct, 2, " %");
+            
+            // Data Tables
+            document.getElementById('res-Q_hot_kW').textContent = format(results.Q_hot_kW, 1, " kW");
+            document.getElementById('res-Q_cold_kW').textContent = format(results.Q_cold_kW, 1, " kW");
+            document.getElementById('res-Q_avg_kW').textContent = format(results.Q_avg_kW, 1, " kW");
+
+            document.getElementById('res-F_factor').textContent = format(results.F_factor, 4);
+            document.getElementById('res-P_ratio').textContent = format(results.P_ratio, 4);
+            document.getElementById('res-R_ratio').textContent = format(results.R_ratio, 4);
+
+            document.getElementById('res-N_shell').textContent = results.N_shell;
+            document.getElementById('res-Area').textContent = format(results.Area, 1, " m²");
+            document.getElementById('res-U_clean').textContent = format(results.U_clean, 1, " W/m²K");
+        }
+
+        function clearResultsUI() {
+            const resultsIds = [
+                'res-R_f', 'res-U_dirty', 'res-Effectiveness', 'res-LMTD',
+                'res-Q_avg_MW', 'res-Design_Q_MW', 'res-Duty_vs_Design_MW', 'res-Duty_vs_Design_pct',
+                'res-Q_hot_kW', 'res-Q_cold_kW', 'res-Q_avg_kW',
+                'res-F_factor', 'res-P_ratio', 'res-R_ratio',
+                'res-N_shell', 'res-Area', 'res-U_clean'
+            ];
+            resultsIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.textContent = '---';
+            });
+        }
+
+        // --- JSON Import/Export Functions ---
+
+        function handleJsonFileSelect(event) {
+            clearError();
+            const file = event.target.files[0];
+            const fileInfo = document.getElementById('jsonFileInfo');
+            if (!file) {
+                fileInfo.textContent = ''; return;
+            }
+            if (!file.name.toLowerCase().endsWith('.json')) {
+                displayError("Invalid file type: .json only.");
+                fileInfo.textContent = 'Invalid file type.';
+                event.target.value = ''; // Reset file input
+                return;
+            }
+            fileInfo.textContent = `Selected: ${file.name}`;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    setInputsFromJson(jsonData);
+                    fileInfo.textContent = `Imported: ${file.name}`;
+                } catch (error) {
+                    displayError("JSON Parse Error: " + error.message);
+                    fileInfo.textContent = `Error processing ${file.name}.`;
+                } finally {
+                    event.target.value = ''; // Reset file input
+                }
+            };
+            reader.onerror = () => {
+                displayError("Error reading file.");
+                fileInfo.textContent = 'Error reading file.';
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function setInputsFromJson(data) {
+            let inputsChanged = false;
+            // Set number inputs
+            INPUT_IDS.forEach(id => {
+                if (data[id] !== undefined) {
+                    document.getElementById(`${id}-input`).value = data[id];
+                    inputsChanged = true;
+                }
+            });
+            // Set select inputs
+            SELECT_IDS.forEach(id => {
+                if (data[id] !== undefined) {
+                    document.getElementById(`${id}-select`).value = data[id];
+                    inputsChanged = true;
+                }
+            });
+            
+            if (inputsChanged) {
+                runCalculation(); // Re-run calculation after loading new data
+            } else {
+                displayError("Imported JSON did not contain any matching input fields.");
+            }
+        }
+
+        function exportJsonFile() {
+            clearError();
+            try {
+                const inputsToExport = {};
+                // Get number inputs
+                INPUT_IDS.forEach(id => {
+                    inputsToExport[id] = parseFloat(document.getElementById(`${id}-input`).value);
+                });
+                // Get select inputs
+                SELECT_IDS.forEach(id => {
+                    inputsToExport[id] = document.getElementById(`${id}-select`).value;
+                });
+
+                const jsonString = JSON.stringify(inputsToExport, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute("href", url);
+                link.setAttribute("download", "exchanger_inputs.json");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                document.getElementById('jsonFileInfo').textContent = 'Inputs exported as exchanger_inputs.json';
+
+            } catch (error) {
+                console.error("Error exporting JSON:", error);
+                displayError("JSON Export Error: " + error.message);
+            }
+        }
+
+    </script>
+</body>
+</html>

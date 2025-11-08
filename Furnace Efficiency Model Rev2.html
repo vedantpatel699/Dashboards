@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Furnace Efficiency Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Green Theme - Inspired by image_114eca.png - Revised */
+        :root {
+            --background: #e8f5e9;       /* Light green background */
+            --surface-container-low: #ffffff; /* White for sidebar/cards */
+            --surface-container: #ffffff;   /* White for inputs */
+            --on-surface: #37474f;       /* Dark greenish-gray text */
+            --on-surface-variant: #546e7a;/* Medium greenish-gray text (labels) */
+            --primary: #2e7d32;          /* Darker Green for primary actions */
+            --primary-hover: #1b5e20;
+            --secondary: #eceff1;        /* Light Gray for secondary buttons/sliders */
+            --secondary-hover: #cfd8dc;
+            --on-secondary: #37474f;     /* Darker text for light gray buttons */
+            --tertiary: #a5d6a7;         /* Lighter green for import */
+            --tertiary-hover: #81c784;
+            --on-tertiary: #1b5e20;      /* Dark green text for light green buttons */
+            --error: #c62828;            /* Red for errors/negative values */
+            --error-container: #ffcdd2;
+            --outline: #b0bec5;          /* Gray Borders */
+            --slider-track: #cfd8dc;     /* Light gray track */
+            --slider-thumb: #b0bec5;     /* Medium Gray thumb */
+            --slider-thumb-hover: #90a4ae;/* Slightly darker gray thumb hover */
+            --shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04); /* Softer shadow */
+            --shadow-md: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* Softer shadow */
+        }
+
+        body {
+            background-color: var(--background);
+            color: var(--on-surface);
+            font-family: 'Roboto', 'Arial', sans-serif; /* Consistent font */
+        }
+        .sidebar { background-color: var(--surface-container-low); box-shadow: var(--shadow-md); border-right: 1px solid var(--outline); }
+        .sidebar h1, .sidebar h2 { color: var(--on-surface); font-weight: 500; }
+        .sidebar label { color: var(--on-surface-variant); font-size: 0.875rem; } /* text-sm */
+        .sidebar select, .sidebar input[type=number], #customFuelModal input[type=number] {
+            background-color: var(--surface-container);
+            border: 1px solid var(--outline);
+            color: var(--on-surface);
+            border-radius: 4px; /* Less rounded */
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+            box-shadow: none;
+            height: 36px; /* Consistent height */
+        }
+         .sidebar select {
+             padding-right: 2rem;
+             appearance: none;
+             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3E%3C/svg%3E");
+             background-repeat: no-repeat;
+             background-position: right 0.5rem center;
+             background-size: 1.5em 1.5em;
+        }
+        /* Slider Track */
+        .sidebar input[type=range] {
+             background-color: transparent;
+             appearance: none;
+             width: 100%; height: 6px; /* Slightly thicker track */
+             background: var(--slider-track);
+             border-radius: 3px;
+             cursor: pointer;
+             margin-top: 8px; margin-bottom: 8px;
+        }
+        /* Slider Thumb (Chrome, Edge, Safari) */
+        .sidebar input[type=range]::-webkit-slider-thumb {
+             appearance: none;
+             width: 16px; height: 16px;
+             background: var(--slider-thumb);
+             border-radius: 50%;
+             cursor: pointer;
+             border: 1px solid var(--outline); /* Subtle border on thumb */
+             box-shadow: var(--shadow);
+             transition: background-color 0.2s;
+             margin-top: -5px; /* Adjust vertical centering for thicker track */
+        }
+        .sidebar input[type=range]:hover::-webkit-slider-thumb {
+            background-color: var(--slider-thumb-hover);
+        }
+         /* Slider Thumb (Firefox) */
+        .sidebar input[type=range]::-moz-range-thumb {
+            width: 16px; height: 16px;
+            background: var(--slider-thumb);
+            border-radius: 50%;
+            border: 1px solid var(--outline);
+            cursor: pointer;
+            box-shadow: var(--shadow);
+             transition: background-color 0.2s;
+        }
+         .sidebar input[type=range]:hover::-moz-range-thumb {
+             background-color: var(--slider-thumb-hover);
+         }
+
+
+        .results-panel { background-color: var(--surface-container); }
+        .results-panel h2, .results-panel h3 { color: var(--on-surface); font-weight: 500; }
+        .metric-card, .table-card {
+             background-color: var(--surface-container-low);
+             border: 1px solid var(--outline);
+             border-radius: 8px; /* Slightly rounded */
+             box-shadow: none;
+         }
+        .metric-label, .table-label { color: var(--on-surface-variant); } /* Applied to all labels */
+        .metric-value, .table-value { color: var(--on-surface); }
+        /* .metric-value-accent removed - using font-bold now */
+        .duty-value-in { color: #1b5e20; } /* Dark Green for positive duties */
+        .duty-value-out { color: var(--error); }
+        .border-subtle { border-color: var(--outline); opacity: 0.7; }
+
+        /* Modal Styling */
+        #customFuelModal > div { background-color: var(--surface-container-low); color: var(--on-surface); border-radius: 12px; box-shadow: var(--shadow-md); }
+        #customFuelModal h2 { color: var(--on-surface); font-weight: 500; }
+        #customFuelModal label { color: var(--on-surface-variant); font-size: 0.875rem; }
+        #customFuelModal input { background-color: var(--surface-container); border-color: var(--outline); color: var(--on-surface); border-radius: 4px; }
+        #customFuelModal #modal-content > div:first-child { background-color: #e8f5e9; border-radius: 8px; } /* C6+ bg light green */
+        #customFuelModal button#closeModalBtn { color: var(--on-surface-variant); font-size: 1.5rem; }
+        #customFuelModal button#closeModalBtn:hover { color: var(--on-surface); }
+        #customFuelModal .border-b, #customFuelModal .border-t { border-color: var(--outline); opacity: 0.7; }
+
+        /* Button Styles - Lower Contrast (Material You inspired) */
+        .button {
+            padding: 0.5rem 1rem;
+            border-radius: 18px; /* More rounded */
+            font-weight: 500;
+            text-align: center;
+            transition: background-color 0.2s, box-shadow 0.2s, border-color 0.2s;
+            border: 1px solid transparent;
+            cursor: pointer;
+            height: 36px; /* Match input height */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Primary (Filled, main action) */
+        .button-primary { background-color: var(--primary); color: white; }
+        .button-primary:hover { background-color: var(--primary-hover); box-shadow: var(--shadow); }
+        /* Secondary (Light fill, less emphasis) */
+        .button-secondary { background-color: var(--secondary); color: var(--on-secondary); border-color: var(--secondary); }
+        .button-secondary:hover { background-color: var(--secondary-hover); }
+         /* Tertiary (Light fill, specific action like import) */
+        .button-tertiary { background-color: var(--tertiary); color: var(--on-tertiary); border-color: var(--tertiary); }
+        .button-tertiary:hover { background-color: var(--tertiary-hover); box-shadow: var(--shadow);}
+        /* File upload looks like tertiary */
+        .file-upload-label { border: none; }
+
+
+        .reset-button {
+            padding: 0.25rem 0.75rem; font-size: 0.75rem; background-color: var(--secondary);
+            color: var(--on-secondary); border-radius: 12px; transition: background-color 0.2s;
+            line-height: 1; white-space: nowrap; border: 1px solid var(--outline); cursor: pointer; height: 24px;
+        }
+        .reset-button:hover { background-color: var(--secondary-hover); }
+
+        /* Other styles */
+        input[type=number] { -moz-appearance: textfield; text-align: center; } /* Center text */
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        #customFuelModal { display: none; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.2); } /* Softer overlay */
+        #modal-content { max-height: 70vh; }
+        #csvFileInput { display: none; }
+        #errorDisplay {
+            color: var(--error); background-color: var(--error-container);
+            border: 1px solid var(--error); padding: 0.75rem;
+            border-radius: 8px; margin-top: 1rem; font-size: 0.875rem;
+            white-space: pre-wrap; max-height: 150px; overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="h-full font-sans leading-normal text-sm">
+    <div class="flex flex-col lg:flex-row h-full">
+
+        <!-- Sidebar / Control Panel -->
+        <div class="sidebar lg:w-1/3 xl:w-1/4 h-full overflow-y-auto p-6">
+            <h1 class="text-xl font-medium mb-6">Furnace Performance</h1>
+
+            <!-- Fuel Selection -->
+            <div class="mb-6">
+                <label for="fuelCase" class="block text-sm font-medium mb-1">1. Fuel Gas Composition</label>
+                <select id="fuelCase" class="w-full p-2 border rounded-full shadow-sm focus:ring-primary focus:border-primary mb-2 text-sm">
+                    <!-- Options populated by JS -->
+                </select>
+                <!-- File Upload -->
+                <input type="file" id="csvFileInput" accept=".csv">
+                <label for="csvFileInput" class="file-upload-label button button-tertiary w-full block mb-2 text-sm">
+                    Import CSV Composition
+                </label>
+                <button id="customFuelBtn" class="button button-primary w-full mb-2 text-sm">
+                    Enter Custom Composition
+                </button>
+                 <button id="exportCsvBtn" class="button button-secondary w-full text-sm">
+                    Export Composition CSV
+                </button>
+                <div id="csvFileInfo" class="text-xs text-gray-500 mt-1"></div>
+            </div>
+
+            <!-- Operational Inputs -->
+            <h2 class="text-lg font-medium mb-4">2. Operational Inputs</h2>
+            <div class="space-y-4">
+                <!-- Input pairs (Label+Reset, Slider+NumberInput) -->
+                 <!-- Fuel Gas Mass Flow -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label for="mf-input" class="block text-sm font-medium">Fuel Flow (mf) [kg/s]</label>
+                        <button class="reset-button" data-input-id="mf">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="mf-slider" min="0.1" max="2" step="0.01" class="w-full">
+                        <input type="number" id="mf-input" step="0.01" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Target Flue Gas O2 -->
+                 <div>
+                     <div class="flex justify-between items-center mb-1">
+                        <label for="target_o2-input" class="block text-sm font-medium">Target Flue Gas O₂ [%]</label>
+                        <button class="reset-button" data-input-id="target_o2">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="target_o2-slider" min="0.5" max="10" step="0.1" class="w-full">
+                        <input type="number" id="target_o2-input" step="0.1" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Combustion Air Temp -->
+                <div>
+                     <div class="flex justify-between items-center mb-1">
+                        <label for="Tca-input" class="block text-sm font-medium">Comb. Air Temp (Tca) [°C]</label>
+                        <button class="reset-button" data-input-id="Tca">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="Tca-slider" min="-30" max="50" step="1" class="w-full">
+                        <input type="number" id="Tca-input" step="1" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Stack Flue Gas Temp -->
+                <div>
+                     <div class="flex justify-between items-center mb-1">
+                        <label for="Ts-input" class="block text-sm font-medium">Stack Temp (Ts) [°C]</label>
+                        <button class="reset-button" data-input-id="Ts">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="Ts-slider" min="150" max="450" step="1" class="w-full">
+                        <input type="number" id="Ts-input" step="1" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Fuel Gas Temp -->
+                <div>
+                     <div class="flex justify-between items-center mb-1">
+                        <label for="Tf-input" class="block text-sm font-medium">Fuel Temp (Tf) [°C]</label>
+                        <button class="reset-button" data-input-id="Tf">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="Tf-slider" min="0" max="100" step="1" class="w-full">
+                        <input type="number" id="Tf-input" step="1" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Process Mass Flow -->
+                <div>
+                     <div class="flex justify-between items-center mb-1">
+                        <label for="mp-input" class="block text-sm font-medium">Process Flow (mp) [kg/s]</label>
+                        <button class="reset-button" data-input-id="mp">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="mp-slider" min="50" max="250" step="1" class="w-full">
+                        <input type="number" id="mp-input" step="1" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Process Fluid Cp -->
+                 <div>
+                     <div class="flex justify-between items-center mb-1">
+                        <label for="Cp_p-input" class="block text-sm font-medium">Process Cp [kJ/kg·K]</label>
+                        <button class="reset-button" data-input-id="Cp_p">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="Cp_p-slider" min="1" max="5" step="0.01" class="w-full">
+                        <input type="number" id="Cp_p-input" step="0.01" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Process Inlet Temp -->
+                 <div>
+                     <div class="flex justify-between items-center mb-1">
+                        <label for="Tp_in-input" class="block text-sm font-medium">Process In Temp (Tp,in) [°C]</label>
+                        <button class="reset-button" data-input-id="Tp_in">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="Tp_in-slider" min="150" max="350" step="1" class="w-full">
+                        <input type="number" id="Tp_in-input" step="1" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Process Outlet Temp -->
+                <div>
+                     <div class="flex justify-between items-center mb-1">
+                        <label for="Tp_out-input" class="block text-sm font-medium">Process Out Temp (Tp,out) [°C]</label>
+                        <button class="reset-button" data-input-id="Tp_out">Reset</button>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <input type="range" id="Tp_out-slider" min="250" max="450" step="1" class="w-full">
+                        <input type="number" id="Tp_out-input" step="1" class="w-20 p-1 border rounded-full text-sm">
+                    </div>
+                </div>
+            </div>
+             <!-- Error Display Area -->
+             <div id="errorDisplay" class="mt-4" style="display: none;"></div>
+        </div>
+
+        <!-- Main Content / Results Panel -->
+        <div class="results-panel lg:w-2/3 xl:w-3/4 h-full overflow-y-auto p-8">
+            <h2 class="text-2xl font-medium mb-3">Results Dashboard</h2>
+            <p class="text-sm text-gray-600 mb-6 max-w-prose">
+                This tool calculates furnace thermal performance based on fuel composition and operational inputs.
+                It determines required combustion air using stoichiometric analysis plus target excess O₂, performs a heat balance,
+                and reports overall thermal efficiency and process-specific heat absorption efficiency. Adjust inputs in the sidebar to see live updates.
+            </p>
+
+            <!-- Key Metrics -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="metric-card p-4 rounded-lg shadow">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">Efficiency (Overall)</div>
+                    <!-- Fixed comment and use font-bold -->
+                    <div id="res-EFFICIENCY" class="metric-value text-2xl font-bold mt-1">...</div>
+                </div>
+                <div class="metric-card p-4 rounded-lg shadow">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">Efficiency (Process)</div>
+                     <!-- Fixed comment and use font-bold -->
+                    <div id="res-ETA_PROCESS" class="metric-value text-2xl font-bold mt-1">...</div>
+                </div>
+                <div class="metric-card p-4 rounded-lg shadow">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">Absorbed Duty (Qabs)</div>
+                    <div id="res-Q_ABS" class="metric-value text-2xl font-medium mt-1">...</div>
+                </div>
+                <div class="metric-card p-4 rounded-lg shadow">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">Process Duty (Qp)</div>
+                    <div id="res-Q_P" class="metric-value text-2xl font-medium mt-1">...</div>
+                </div>
+            </div>
+
+            <!-- Discrepancy -->
+            <div class="metric-card p-4 rounded-lg shadow mb-6 flex items-center justify-between">
+                <div>
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">Duty Discrepancy (Qabs - Qp)</div>
+                    <div id="res-DISCREPANCY" class="metric-value text-xl font-medium mt-1">...</div>
+                </div>
+                <div class="text-right">
+                    <div class="metric-label text-xs font-medium uppercase tracking-wider">Discrepancy (% Qlhv)</div>
+                    <div id="res-DISCREPANCY_PERCENT" class="metric-value text-xl font-medium mt-1">...</div>
+                </div>
+            </div>
+
+            <!-- Data Tables -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="table-card p-5 rounded-lg shadow">
+                    <h3 class="text-lg font-medium mb-3">Key Parameters</h3>
+                    <ul class="space-y-2">
+                        <li class="flex justify-between text-sm"><span class="table-label">Fuel LHV [kJ/kg]</span><span id="res-LHV_MASS_AVG" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Air/Fuel Ratio [kg/kg]</span><span id="res-AIR_TO_FUEL_RATIO" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Process Cp [kJ/kg·K]</span><span id="res-Cp_p" class="table-value font-medium">...</span></li>
+                    </ul>
+                </div>
+                <div class="table-card p-5 rounded-lg shadow">
+                    <h3 class="text-lg font-medium mb-3">Mass Flows [kg/s]</h3>
+                    <ul class="space-y-2">
+                        <li class="flex justify-between text-sm"><span class="table-label">Fuel Gas (mf)</span><span id="res-mf" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Comb. Air (mca)</span><span id="res-M_CA" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Flue Gas (ms)</span><span id="res-M_S" class="table-value font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Process Fluid (mp)</span><span id="res-mp" class="table-value font-medium">...</span></li>
+                    </ul>
+                </div>
+                <div class="table-card p-5 rounded-lg shadow">
+                    <h3 class="text-lg font-medium mb-3">Heat Duties [kW]</h3>
+                    <ul class="space-y-2">
+                        {/* Ensure all labels use the 'table-label' class for consistent color */}
+                        <li class="flex justify-between text-sm"><span class="table-label">Fuel Heat (QLHV)</span><span id="res-Q_LHV" class="duty-value-in font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Fuel Sensible (Qf)</span><span id="res-Q_F" class="duty-value-in font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Air Sensible (Qca)</span><span id="res-Q_CA" class="duty-value-in font-medium">...</span></li>
+                        <li class="pt-2 mt-2 border-t border-subtle"><span class="table-label font-medium">Total In (Q_In)</span><span id="res-Q_IN" class="table-value font-medium">...</span></li> {/* Fixed spacing */}
+                        <li class="flex justify-between text-sm pt-2 mt-2 border-t border-subtle"><span class="table-label">Stack Loss (Qs)</span><span id="res-Q_S" class="duty-value-out font-medium">...</span></li>
+                        <li class="flex justify-between text-sm"><span class="table-label">Heat Loss (Qhl)</span><span id="res-Q_HL" class="duty-value-out font-medium">...</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Fuel Composition Modal -->
+     <div id="customFuelModal" class="fixed inset-0 z-50 p-4">
+        <div class="w-full max-w-3xl rounded-lg shadow-xl flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 class="text-xl font-medium">Custom Fuel Composition</h2>
+                <button id="closeModalBtn" class="text-2xl leading-none">&times;</button>
+            </div>
+            <div id="modal-content" class="p-6 overflow-y-auto space-y-4">
+                <!-- C6+ Properties -->
+                <div class="grid grid-cols-2 gap-4 p-4 rounded-lg">
+                    <div>
+                        <label for="custom-C6+_MW" class="block text-sm font-medium">Custom C6+ MW [g/mol]</label>
+                        <input type="number" id="custom-C6+_MW" step="0.01" class="w-full mt-1 p-2 border rounded-full text-sm">
+                    </div>
+                    <div>
+                        <label for="custom-C6+_LHV_MJ_kg" class="block text-sm font-medium">Custom C6+ LHV [MJ/kg]</label>
+                        <input type="number" id="custom-C6+_LHV_MJ_kg" step="0.01" class="w-full mt-1 p-2 border rounded-full text-sm">
+                    </div>
+                </div>
+                <!-- Component Fractions -->
+                <div id="custom-fractions-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+                    <!-- Dynamic content populated by JS -->
+                </div>
+            </div>
+            <div class="p-4 border-t">
+                <button id="applyCustomFuelBtn" class="button button-primary w-full">Apply Custom Composition</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // ==============================================================================
+        // JAVASCRIPT LOGIC (Constants, Calculations, Event Handlers)
+        // ==============================================================================
+        // NOTE: The JavaScript code remains identical to the previous version.
+        // Only the <style> block and HTML structure/classes were modified for the theme.
+        // Constants
+        const T_REF = 15.0;
+        const HEAT_LOSS_PERCENT = 0.015;
+        const O2_MOLAR_MASS_G_MOL = 32.0;
+        const N2_MOLAR_MASS_G_MOL = 28.0;
+        const O2_VOL_FRACTION_IN_AIR = 0.21;
+        const N2_VOL_FRACTION_IN_AIR = 0.79;
+        const CP_CA = 1.006;
+        const CP_FS = 2.6038;
+        const CP_FG = 1.062;
+        const FUEL_COMPONENT_PROPERTIES = {
+            "Water":              {"MW": 18.02, "LHV_MJ_kg": 0.0,    "O2_NEEDED": 0.0, "H2O_GENERATED": 0.0, "CO2_GENERATED": 0.0},
+            "Hydrogen_Sulfide":   {"MW": 34.08, "LHV_MJ_kg": 0.0,    "O2_NEEDED": 1.5, "H2O_GENERATED": 1.0, "CO2_GENERATED": 0.0}, // Produces SO2
+            "Hydrogen":           {"MW": 2.02,  "LHV_MJ_kg": 120.97, "O2_NEEDED": 0.5, "H2O_GENERATED": 1.0, "CO2_GENERATED": 0.0},
+            "Nitrogen":           {"MW": 28.0,  "LHV_MJ_kg": 0.0,    "O2_NEEDED": 0.0, "H2O_GENERATED": 0.0, "CO2_GENERATED": 0.0},
+            "Oxygen_Argon":       {"MW": 32.0,  "LHV_MJ_kg": 0.0,    "O2_NEEDED":-1.0, "H2O_GENERATED": 0.0, "CO2_GENERATED": 0.0}, // Consumed
+            "CO2":                {"MW": 44.0,  "LHV_MJ_kg": 0.0,    "O2_NEEDED": 0.0, "H2O_GENERATED": 0.0, "CO2_GENERATED": 0.0},
+            "CO":                 {"MW": 28.0,  "LHV_MJ_kg": 10.11,  "O2_NEEDED": 0.5, "H2O_GENERATED": 0.0, "CO2_GENERATED": 1.0},
+            "Methane":            {"MW": 16.04, "LHV_MJ_kg": 50.01,  "O2_NEEDED": 2.0, "H2O_GENERATED": 2.0, "CO2_GENERATED": 1.0},
+            "Ethane":             {"MW": 30.06, "LHV_MJ_kg": 47.79,  "O2_NEEDED": 3.5, "H2O_GENERATED": 3.0, "CO2_GENERATED": 2.0},
+            "Ethylene":           {"MW": 28.04, "LHV_MJ_kg": 47.2,   "O2_NEEDED": 3.0, "H2O_GENERATED": 2.0, "CO2_GENERATED": 2.0},
+            "Propane":            {"MW": 44.08, "LHV_MJ_kg": 46.36,  "O2_NEEDED": 5.0, "H2O_GENERATED": 4.0, "CO2_GENERATED": 3.0},
+            "Propylene":          {"MW": 42.06, "LHV_MJ_kg": 45.8,   "O2_NEEDED": 4.5, "H2O_GENERATED": 3.0, "CO2_GENERATED": 3.0},
+            "Isobutane":          {"MW": 58.12, "LHV_MJ_kg": 45.72,  "O2_NEEDED": 6.5, "H2O_GENERATED": 5.0, "CO2_GENERATED": 4.0},
+            "n-Butane":           {"MW": 58.12, "LHV_MJ_kg": 45.72,  "O2_NEEDED": 6.5, "H2O_GENERATED": 5.0, "CO2_GENERATED": 4.0},
+            "Butene":             {"MW": 56.1,  "LHV_MJ_kg": 45.3,   "O2_NEEDED": 6.0, "H2O_GENERATED": 4.0, "CO2_GENERATED": 4.0},
+            "Isopentane":         {"MW": 72.15, "LHV_MJ_kg": 45.24,  "O2_NEEDED": 8.0, "H2O_GENERATED": 6.0, "CO2_GENERATED": 5.0},
+            "n-Pentane":          {"MW": 72.15, "LHV_MJ_kg": 45.24,  "O2_NEEDED": 8.0, "H2O_GENERATED": 6.0, "CO2_GENERATED": 5.0},
+            "C6+":                {"MW": 86.18, "LHV_MJ_kg": 44.75,  "O2_NEEDED": 9.5, "H2O_GENERATED": 7.0, "CO2_GENERATED": 6.0} // Approx Hexane
+        };
+        const FUEL_GAS_CASES = {
+            "Base Case": { "C6+_MW": 86.18, "C6+_LHV_MJ_kg": 44.75, "AVERAGE_MW": 13.83, "MIXTURE_LHV_MJ_kg": 49.469, "FRACTIONS": {"Water": 0.0, "Hydrogen_Sulfide": 0.0, "Hydrogen": 0.40976, "Nitrogen": 0.01406, "Oxygen_Argon": 0.0, "CO2": 0.0, "CO": 0.0, "Methane": 0.45345, "Ethane": 0.07221, "Ethylene": 0.0, "Propane": 0.02689, "Propylene": 0.0, "Isobutane": 0.0, "n-Butane": 0.0, "Butene": 0.0, "Isopentane": 0.0, "n-Pentane": 0.0, "C6+": 0.02363}},
+            "Summer Blend": { "C6+_MW": 94.5313, "C6+_LHV_MJ_kg": 40.9573, "AVERAGE_MW": 12.9689, "MIXTURE_LHV_MJ_kg": 50.6902, "FRACTIONS": {"Water": 0.0034, "Hydrogen_Sulfide": 0.0, "Hydrogen": 0.3809, "Nitrogen": 0.0188, "Oxygen_Argon": 0.0009, "CO2": 0.0013, "CO": 0.0003, "Methane": 0.4983, "Ethane": 0.0727, "Ethylene": 0.0017, "Propane": 0.0101, "Propylene": 0.0002, "Isobutane": 0.0013, "n-Butane": 0.0028, "Butene": 0.0, "Isopentane": 0.0015, "n-Pentane": 0.0029, "C6+": 0.0030}},
+            "Winter Blend": { "C6+_MW": 105.7881, "C6+_LHV_MJ_kg": 40.8839, "AVERAGE_MW": 13.6498, "MIXTURE_LHV_MJ_kg": 50.1570, "FRACTIONS": {"Water": 0.0029, "Hydrogen_Sulfide": 0.0, "Hydrogen": 0.328, "Nitrogen": 0.0183, "Oxygen_Argon": 0.0007, "CO2": 0.0018, "CO": 0.0002, "Methane": 0.5567, "Ethane": 0.0671, "Ethylene": 0.0015, "Propane": 0.0106, "Propylene": 0.0002, "Isobutane": 0.0017, "n-Butane": 0.0029, "Butene": 0.0, "Isopentane": 0.0014, "n-Pentane": 0.0026, "C6+": 0.0027}},
+            "Hydrogen Rich Blend": { "C6+_MW": 107.7931, "C6+_LHV_MJ_kg": 39.3797, "AVERAGE_MW": 11.1370, "MIXTURE_LHV_MJ_kg": 53.1777, "FRACTIONS": {"Water": 0.0023, "Hydrogen_Sulfide": 0.0, "Hydrogen": 0.5728, "Nitrogen": 0.018, "Oxygen_Argon": 0.0008, "CO2": 0.0001, "CO": 0.0002, "Methane": 0.2845, "Ethane": 0.0671, "Ethylene": 0.0016, "Propane": 0.032, "Propylene": 0.0, "Isobutane": 0.0018, "n-Butane": 0.0125, "Butene": 0.0, "Isopentane": 0.0011, "n-Pentane": 0.0014, "C6+": 0.0032}},
+            "Propane Rich Blend": { "C6+_MW": 51.2535, "C6+_LHV_MJ_kg": 37.6674, "AVERAGE_MW": 21.0556, "MIXTURE_LHV_MJ_kg": 47.4538, "FRACTIONS": {"Water": 0.0025, "Hydrogen_Sulfide": 0.0, "Hydrogen": 0.1996, "Nitrogen": 0.0235, "Oxygen_Argon": 0.0013, "CO2": 0.0003, "CO": 0.0004, "Methane": 0.4849, "Ethane": 0.1177, "Ethylene": 0.0027, "Propane": 0.0992, "Propylene": 0.0019, "Isobutane": 0.0244, "n-Butane": 0.0288, "Butene": 0.004, "Isopentane": 0.0019, "n-Pentane": 0.0059, "C6+": 0.0046}},
+            "Natural Gas": { "C6+_MW": 90.4933, "C6+_LHV_MJ_kg": 49.8717, "AVERAGE_MW": 17.0601, "MIXTURE_LHV_MJ_kg": 47.7802, "FRACTIONS": {"Water": 0.0, "Hydrogen_Sulfide": 0.0, "Hydrogen": 0.0, "Nitrogen": 0.0164, "Oxygen_Argon": 0.0, "CO2": 0.0053, "CO": 0.0, "Methane": 0.9429, "Ethane": 0.0267, "Ethylene": 0.0, "Propane": 0.0058, "Propylene": 0.0, "Isobutane": 0.001, "n-Butane": 0.0011, "Butene": 0.0, "Isopentane": 0.0003, "n-Pentane": 0.0002, "C6+": 0.0003}},
+            "Average Mixture Blend": { "C6+_MW": 102.1893, "C6+_LHV_MJ_kg": 39.7221, "AVERAGE_MW": 15.0834, "MIXTURE_LHV_MJ_kg": 49.3242, "FRACTIONS": {"Water": 0.0010, "Hydrogen_Sulfide": 0.00099, "Hydrogen": 0.34242, "Nitrogen": 0.01548, "Oxygen_Argon": 0.00116, "CO2": 0.0024, "CO": 0.00074, "Methane": 0.52052, "Ethane": 0.08416, "Ethylene": 0.00036, "Propane": 0.02416, "Propylene": 0.0003, "Isobutane": 0.0024, "n-Butane": 0.0029, "Butene": 0.0015, "Isopentane": 0.0010, "n-Pentane": 0.0011, "C6+": 0.0146}}
+        };
+        const DEFAULTS = {"mf": 0.8485508, "Tca": -12.0, "Ts": 294.0313, "Tf": 36.0, "mp": 141.3520, "Tp_in": 256.9371, "Tp_out": 338.0845, "target_o2": 4.26476, "Cp_p": 2.975,};
+        let activeFuelComposition = FUEL_GAS_CASES["Base Case"];
+        let customFuelData = null;
+
+        // Calculation Functions (calculate_combustion_mass_flows, calculate_lhv_from_composition, calculate_q_f, etc., calculate_furnace_performance)
+        // ... (These functions remain unchanged from the previous version) ...
+         function calculate_combustion_mass_flows(mf, fuel_composition, target_o2_vol_percent) { try { const avg_mw = fuel_composition?.AVERAGE_MW; const fractions = fuel_composition?.FRACTIONS; if (!avg_mw || avg_mw <= 0) { throw new Error("AVERAGE_MW is missing, zero, or negative."); } if (!fractions || Object.keys(fractions).length === 0) { throw new Error("Fuel fractions are missing."); } if (mf < 0) { throw new Error("Fuel mass flow (mf) cannot be negative."); } if (target_o2_vol_percent < 0) { throw new Error("Target O2 percentage cannot be negative."); } const total_fuel_molar_flow = mf / (avg_mw / 1000.0); if (!isFinite(total_fuel_molar_flow)) { throw new Error("Calculated total_fuel_molar_flow is invalid."); } let o2_stoich_mols = 0, h2o_gen_mols = 0, co2_gen_mols = 0, n2_fuel_mols = 0; for (const [comp, zi_input] of Object.entries(fractions)) { const zi = Number(zi_input); if (isNaN(zi)) { console.warn(`Invalid fraction for ${comp}, treating as 0.`); continue; } if (FUEL_COMPONENT_PROPERTIES[comp]) { const props = FUEL_COMPONENT_PROPERTIES[comp]; const comp_flow = total_fuel_molar_flow * zi; if (zi < 0) { console.warn(`Negative mol fraction for ${comp}, treating as 0.`); continue; } o2_stoich_mols += comp_flow * (props.O2_NEEDED || 0); h2o_gen_mols += comp_flow * (props.H2O_GENERATED || 0); co2_gen_mols += comp_flow * (props.CO2_GENERATED || 0); if (comp === "Nitrogen") n2_fuel_mols += comp_flow; } } const n2_stoich_air_mols = Math.max(0, o2_stoich_mols * (N2_VOL_FRACTION_IN_AIR / O2_VOL_FRACTION_IN_AIR)); const stoich_flue_gas_mols = co2_gen_mols + h2o_gen_mols + n2_fuel_mols + n2_stoich_air_mols; const o2_target_frac = target_o2_vol_percent / 100.0; const air_multiplier = (1 + N2_VOL_FRACTION_IN_AIR / O2_VOL_FRACTION_IN_AIR); if (o2_target_frac * air_multiplier >= 1) { throw new Error(`Target O2 (${target_o2_vol_percent}%) is too high (max approx ${(100/air_multiplier).toFixed(2)}%).`); } const denominator = (1 - o2_target_frac * air_multiplier); if (Math.abs(denominator) < 1e-9) { throw new Error("Calculation resulted in division by zero (target O2 potentially too high)."); } let excess_o2_mols = (o2_target_frac * stoich_flue_gas_mols) / denominator; if (excess_o2_mols < 0) { console.warn("Calculated negative excess O2. Setting to 0."); excess_o2_mols = 0; } const total_o2_supplied_mols = Math.max(0, o2_stoich_mols + excess_o2_mols); const total_n2_supplied_mols = total_o2_supplied_mols * (N2_VOL_FRACTION_IN_AIR / O2_VOL_FRACTION_IN_AIR); const m_ca_o2_kgs = total_o2_supplied_mols * (O2_MOLAR_MASS_G_MOL / 1000.0); const m_ca_n2_kgs = total_n2_supplied_mols * (N2_MOLAR_MASS_G_MOL / 1000.0); const m_ca_kgs = m_ca_o2_kgs + m_ca_n2_kgs; const m_s_kgs = mf + m_ca_kgs; if (!isFinite(m_ca_kgs) || !isFinite(m_s_kgs)) { throw new Error("Calculated mass flows are invalid."); } return { m_ca_kgs, m_s_kgs }; } catch (error) { console.error("Error in calculate_combustion_mass_flows:", error); displayError("Combustion Calc Error: " + error.message); return null; } }
+        function calculate_lhv_from_composition(mol_fractions, c6_mw_override = null, c6_lhv_override = null) { try { let local_props = JSON.parse(JSON.stringify(FUEL_COMPONENT_PROPERTIES)); if (c6_mw_override !== null) { if (c6_mw_override > 0) local_props["C6+"]["MW"] = c6_mw_override; else console.warn("Invalid C6+ MW override ignored."); } if (c6_lhv_override !== null) { local_props["C6+"]["LHV_MJ_kg"] = c6_lhv_override; } const valid_fractions = {}; let total_moles = 0; for(const [comp, zi_input] of Object.entries(mol_fractions)) { const zi = Number(zi_input); if (!isNaN(zi) && zi >= 0) { valid_fractions[comp] = zi; total_moles += zi; } else { console.warn(`Invalid or negative fraction for ${comp} ignored in LHV calc.`); } } const normalizer = (total_moles > 1e-9) ? total_moles : 1.0; if (Math.abs(total_moles - 1.0) > 1e-3 && total_moles > 1e-9) { console.warn(`Sum of valid mol fractions (${total_moles.toFixed(4)}) is not 1.0. Normalizing.`); } let average_mw = 0.0; for (const [component, zi] of Object.entries(valid_fractions)) { if (local_props[component]) { average_mw += (zi / normalizer) * local_props[component]["MW"]; } } if (average_mw <= 1e-9) { throw new Error("Average molecular weight calculation resulted in zero."); } let mixture_lhv_mj_kg = 0.0; for (const [component, zi] of Object.entries(valid_fractions)) { if (local_props[component]) { const props = local_props[component]; const mass_fraction = ((zi / normalizer) * props["MW"]) / average_mw; mixture_lhv_mj_kg += mass_fraction * (props.LHV_MJ_kg || 0); } } return { average_mw, mixture_lhv_mj_kg }; } catch (error) { console.error("Error in calculate_lhv_from_composition:", error); displayError("LHV Calc Error: " + error.message); return { average_mw: 0, mixture_lhv_mj_kg: 0 }; } }
+        function calculate_q_f(mf, Tf) { return mf * CP_FS * (Tf - T_REF); } function calculate_q_ca(m_ca, Tca) { return m_ca * CP_CA * (Tca - T_REF); } function calculate_q_s(m_s, Ts) { return m_s * CP_FG * (Ts - T_REF); } function calculate_q_p(mp, Tp_in, Tp_out, Cp_p) { if (Tp_out < Tp_in) { console.warn(`Process Outlet Temp (${Tp_out}°C) < Inlet Temp (${Tp_in}°C). Qp will be negative.`); } return mp * Cp_p * (Tp_out - Tp_in); }
+        function calculate_furnace_performance(inputs) { try { const { mf, Tca, Ts, Tf, mp, Tp_in, Tp_out, lhv_mass_avg_kj, fuel_comp, target_o2, Cp_p } = inputs; if (mf < 0 || mp < 0) { throw new Error("Mass flows (mf, mp) cannot be negative."); } if (Cp_p <= 0) { throw new Error("Process Fluid Cp must be positive."); } if (lhv_mass_avg_kj < 0) { console.warn("LHV is negative."); } const mass_flows = calculate_combustion_mass_flows(mf, fuel_comp, target_o2); if (!mass_flows) return null; const { m_ca_kgs, m_s_kgs } = mass_flows; const q_lhv = mf * lhv_mass_avg_kj; if (Math.abs(q_lhv) < 1e-9 && mf > 0) { console.warn("Q_LHV is zero. Efficiencies may be zero or undefined."); } const q_f = calculate_q_f(mf, Tf); const q_ca = calculate_q_ca(m_ca_kgs, Tca); const q_s = calculate_q_s(m_s_kgs, Ts); const q_p = calculate_q_p(mp, Tp_in, Tp_out, Cp_p); const q_hl = Math.abs(q_lhv * HEAT_LOSS_PERCENT); const q_in = q_lhv + q_f + q_ca; const q_out_unabs = q_s + q_hl; const q_abs = q_in - q_out_unabs; const efficiency = (q_lhv !== 0) ? (q_abs / q_lhv) * 100 : 0; const efficiency_process = (q_lhv !== 0) ? (q_p / q_lhv) * 100 : 0; const discrepancy = q_abs - q_p; const discrepancy_percent = (q_lhv !== 0) ? (discrepancy / q_lhv) * 100 : 0; const results = {'M_CA': m_ca_kgs, 'M_S': m_s_kgs, 'AIR_TO_FUEL_RATIO': (mf > 0) ? m_ca_kgs / mf : 0, 'Q_LHV': q_lhv, 'LHV_MASS_AVG': lhv_mass_avg_kj, 'Q_F': q_f, 'Q_CA': q_ca, 'Q_IN': q_in, 'Q_S': q_s, 'Q_HL': q_hl, 'Q_ABS': q_abs, 'EFFICIENCY': efficiency, 'ETA_PROCESS': efficiency_process, 'Q_P': q_p, 'DISCREPANCY': discrepancy, 'DISCREPANCY_PERCENT': discrepancy_percent, 'mf': mf, 'mp': mp, 'Cp_p': Cp_p }; for(const [key, value] of Object.entries(results)) { if (!isFinite(value)) { throw new Error(`Calculation resulted in invalid number for ${key}: ${value}`); } } return results; } catch (error) { console.error("Error in calculate_furnace_performance:", error); displayError("Performance Calc Error: " + error.message); return null; } }
+
+        // Dashboard Logic & Event Handlers
+        // ... (initializeApp, populateFuelSelect, setupEventListeners, resetToDefault, getStepPrecision, setInitialValues, clearError, displayError, runCalculation, updateDashboardUI, clearResultsUI, modal functions, CSV functions remain unchanged from previous version) ...
+         document.addEventListener('DOMContentLoaded', initializeApp);
+        function initializeApp() { populateFuelSelect(); setupEventListeners(); setInitialValues(); runCalculation(); }
+        function populateFuelSelect() { const select = document.getElementById('fuelCase'); select.innerHTML = ''; Object.keys(FUEL_GAS_CASES).forEach(caseName => { const option = document.createElement('option'); option.value = caseName; option.textContent = caseName; select.appendChild(option); }); const customOption = document.createElement('option'); customOption.value = "Custom"; customOption.textContent = "Custom (Applied)"; customOption.disabled = true; customOption.hidden = true; select.appendChild(customOption); select.value = "Base Case"; }
+        function setupEventListeners() {
+            const inputIds = ["mf", "target_o2", "Tca", "Ts", "Tf", "mp", "Cp_p", "Tp_in", "Tp_out"];
+            inputIds.forEach(id => { const slider = document.getElementById(`${id}-slider`); const input = document.getElementById(`${id}-input`); const precision = getStepPrecision(slider.step); slider.addEventListener('input', () => { input.value = parseFloat(slider.value).toFixed(precision); runCalculation(); }); input.addEventListener('change', () => { let value = parseFloat(input.value); const min = parseFloat(slider.min); const max = parseFloat(slider.max); if (isNaN(value)) value = DEFAULTS[id]; value = Math.max(min, Math.min(max, value)); input.value = value.toFixed(precision); slider.value = value; runCalculation(); }); });
+            document.querySelectorAll('.reset-button').forEach(button => { button.addEventListener('click', (event) => { const inputId = event.target.getAttribute('data-input-id'); resetToDefault(inputId); }); });
+            document.getElementById('fuelCase').addEventListener('change', (event) => { const selectedCaseName = event.target.value; if (selectedCaseName !== "Custom") { activeFuelComposition = FUEL_GAS_CASES[selectedCaseName]; customFuelData = null; document.getElementById('csvFileInfo').textContent = ''; const customOpt = document.querySelector('#fuelCase option[value="Custom"]'); if (customOpt) { customOpt.hidden = true; customOpt.disabled = true; } runCalculation(); } });
+            document.getElementById('customFuelBtn').addEventListener('click', () => openCustomFuelModal() ); document.getElementById('closeModalBtn').addEventListener('click', closeCustomFuelModal); document.getElementById('applyCustomFuelBtn').addEventListener('click', applyCustomFuel);
+             document.getElementById('csvFileInput').addEventListener('change', handleCsvFileSelect); document.getElementById('exportCsvBtn').addEventListener('click', exportCompositionCsv);
+        }
+        function resetToDefault(inputId) { const defaultValue = DEFAULTS[inputId]; const slider = document.getElementById(`${inputId}-slider`); const input = document.getElementById(`${inputId}-input`); const precision = getStepPrecision(slider.step); slider.value = defaultValue; input.value = defaultValue.toFixed(precision); runCalculation(); }
+        function getStepPrecision(step) { const stepStr = String(step); if (stepStr.includes('.')) { return stepStr.split('.')[1].length; } return 0; }
+        function setInitialValues() { activeFuelComposition = FUEL_GAS_CASES["Base Case"]; const inputIds = ["mf", "target_o2", "Tca", "Ts", "Tf", "mp", "Cp_p", "Tp_in", "Tp_out"]; inputIds.forEach(id => { const slider = document.getElementById(`${id}-slider`); const input = document.getElementById(`${id}-input`); const value = DEFAULTS[id]; const precision = getStepPrecision(slider.step); slider.value = value; input.value = value.toFixed(precision); }); document.getElementById('fuelCase').value = "Base Case"; }
+        function clearError() { const errorDisplay = document.getElementById('errorDisplay'); errorDisplay.textContent = ''; errorDisplay.style.display = 'none'; }
+        function displayError(message) { const errorDisplay = document.getElementById('errorDisplay'); errorDisplay.textContent = message; errorDisplay.style.display = 'block'; }
+        function runCalculation() {
+             clearError(); try { const inputs = { mf: parseFloat(document.getElementById('mf-input').value), Tca: parseFloat(document.getElementById('Tca-input').value), Ts: parseFloat(document.getElementById('Ts-input').value), Tf: parseFloat(document.getElementById('Tf-input').value), mp: parseFloat(document.getElementById('mp-input').value), Tp_in: parseFloat(document.getElementById('Tp_in-input').value), Tp_out: parseFloat(document.getElementById('Tp_out-input').value), target_o2: parseFloat(document.getElementById('target_o2-input').value), Cp_p: parseFloat(document.getElementById('Cp_p-input').value), fuel_comp: activeFuelComposition, lhv_mass_avg_kj: (activeFuelComposition?.MIXTURE_LHV_MJ_kg || 0) * 1000.0 }; for(const [key, value] of Object.entries(inputs)) { if (typeof value === 'number' && isNaN(value)) { throw new Error(`Invalid input for ${key}.`); } } const results = calculate_furnace_performance(inputs); if (results) { updateDashboardUI(results); } else { clearResultsUI(); } } catch (error) { console.error("Error in runCalculation:", error); displayError("UI/Input Error: " + error.message); clearResultsUI(); }
+        }
+        function updateDashboardUI(results) { const format = (val, decimals, unit = "") => { if (val === null || val === undefined || !isFinite(val)) return "---"; const num = Number(val); return num.toFixed(decimals) + unit; }; document.getElementById('res-EFFICIENCY').textContent = format(results.EFFICIENCY, 2, " %"); document.getElementById('res-ETA_PROCESS').textContent = format(results.ETA_PROCESS, 2, " %"); document.getElementById('res-Q_ABS').textContent = format(results.Q_ABS, 0, " kW"); document.getElementById('res-Q_P').textContent = format(results.Q_P, 0, " kW"); document.getElementById('res-DISCREPANCY').textContent = format(results.DISCREPANCY, 1, " kW"); document.getElementById('res-DISCREPANCY_PERCENT').textContent = format(results.DISCREPANCY_PERCENT, 3, " %"); document.getElementById('res-LHV_MASS_AVG').textContent = format(results.LHV_MASS_AVG, 0, " kJ/kg"); document.getElementById('res-AIR_TO_FUEL_RATIO').textContent = format(results.AIR_TO_FUEL_RATIO, 3, " kg/kg"); document.getElementById('res-Cp_p').textContent = format(results.Cp_p, 3, " kJ/kg·K"); document.getElementById('res-mf').textContent = format(results.mf, 4, " kg/s"); document.getElementById('res-M_CA').textContent = format(results.M_CA, 4, " kg/s"); document.getElementById('res-M_S').textContent = format(results.M_S, 4, " kg/s"); document.getElementById('res-mp').textContent = format(results.mp, 4, " kg/s"); document.getElementById('res-Q_LHV').textContent = format(results.Q_LHV, 0, " kW"); document.getElementById('res-Q_F').textContent = format(results.Q_F, 0, " kW"); document.getElementById('res-Q_CA').textContent = format(results.Q_CA, 0, " kW"); document.getElementById('res-Q_IN').textContent = format(results.Q_IN, 0, " kW"); document.getElementById('res-Q_S').textContent = format(results.Q_S, 0, " kW"); document.getElementById('res-Q_HL').textContent = format(results.Q_HL, 0, " kW"); }
+        function clearResultsUI() { const resultsIds = ['res-EFFICIENCY', 'res-ETA_PROCESS', 'res-Q_ABS', 'res-Q_P','res-DISCREPANCY', 'res-DISCREPANCY_PERCENT', 'res-LHV_MASS_AVG','res-AIR_TO_FUEL_RATIO', 'res-Cp_p', 'res-mf', 'res-M_CA','res-M_S', 'res-mp', 'res-Q_LHV', 'res-Q_F', 'res-Q_CA','res-Q_IN', 'res-Q_S', 'res-Q_HL']; resultsIds.forEach(id => { const element = document.getElementById(id); if (element) element.textContent = '---'; }); }
+        function openCustomFuelModal(parsedData = null) { const modal = document.getElementById('customFuelModal'); const grid = document.getElementById('custom-fractions-grid'); grid.innerHTML = ''; const sourceData = parsedData || customFuelData || FUEL_GAS_CASES["Average Mixture Blend"]; document.getElementById('custom-C6+_MW').value = sourceData?.C6_MW ?? FUEL_COMPONENT_PROPERTIES["C6+"]["MW"]; document.getElementById('custom-C6+_LHV_MJ_kg').value = sourceData?.C6_LHV_MJ_kg ?? FUEL_COMPONENT_PROPERTIES["C6+"]["LHV_MJ_kg"]; Object.keys(FUEL_COMPONENT_PROPERTIES).forEach(compName => { const value = sourceData?.FRACTIONS?.[compName] ?? 0.0; const div = document.createElement('div'); div.innerHTML = `<label for="custom-${compName}" class="block text-xs font-medium">${compName.replace(/_/g, " ")}</label><input type="number" id="custom-${compName}" value="${Number(value).toFixed(5)}" step="0.00001" min="0" class="w-full mt-1 p-2 border rounded-full text-sm">`; grid.appendChild(div); }); modal.style.display = 'flex'; }
+        function closeCustomFuelModal() { document.getElementById('customFuelModal').style.display = 'none'; }
+        function applyCustomFuel() {
+             clearError(); try { const customFractions = {}; let total_moles = 0; let hasNegative = false; Object.keys(FUEL_COMPONENT_PROPERTIES).forEach(compName => { const inputElement = document.getElementById(`custom-${compName}`); const val = parseFloat(inputElement?.value || '0'); if (isNaN(val)) { throw new Error(`Invalid numeric value for ${compName}.`); } if (val < 0) { console.warn(`Negative fraction for ${compName}.`); hasNegative = true; customFractions[compName] = 0; } else { customFractions[compName] = val; total_moles += val; } }); if (hasNegative) { displayError("Warning: Negative fractions treated as zero."); } if (Math.abs(total_moles - 1.0) > 1e-3 && total_moles > 1e-9) { displayError(`Warning: Sum of fractions (${total_moles.toFixed(4)}) is not 1.0. Normalizing.`); } const c6_mw_input = document.getElementById('custom-C6+_MW'); const c6_lhv_input = document.getElementById('custom-C6+_LHV_MJ_kg'); const c6_mw = parseFloat(c6_mw_input.value); const c6_lhv = parseFloat(c6_lhv_input.value); if (isNaN(c6_mw) || c6_mw <=0 ) { throw new Error(`Invalid C6+ MW: ${c6_mw_input.value}.`); } if (isNaN(c6_lhv)) { throw new Error(`Invalid C6+ LHV: ${c6_lhv_input.value}.`); } const { average_mw, mixture_lhv_mj_kg } = calculate_lhv_from_composition(customFractions, c6_mw, c6_lhv); if (average_mw === 0) { throw new Error("LHV/MW calculation failed."); } customFuelData = { "C6+_MW": c6_mw, "C6+_LHV_MJ_kg": c6_lhv, "AVERAGE_MW": average_mw, "MIXTURE_LHV_MJ_kg": mixture_lhv_mj_kg, "FRACTIONS": customFractions }; activeFuelComposition = customFuelData; const select = document.getElementById('fuelCase'); const customOpt = select.querySelector('option[value="Custom"]'); if (customOpt) { customOpt.hidden = false; customOpt.disabled = false; select.value = "Custom"; } document.getElementById('csvFileInfo').textContent = ''; closeCustomFuelModal(); runCalculation(); console.log(`Custom fuel applied. Sum: ${total_moles.toFixed(4)}`); } catch (error) { console.error("Error applying custom fuel:", error); displayError("Apply Custom Error: " + error.message); }
+        }
+        function handleCsvFileSelect(event) {
+             clearError(); const file = event.target.files[0]; const fileInfo = document.getElementById('csvFileInfo'); if (!file) { fileInfo.textContent = ''; return; } if (!file.name.toLowerCase().endsWith('.csv')) { displayError("Invalid file type: .csv only."); fileInfo.textContent = 'Invalid file type.'; event.target.value = ''; return; } fileInfo.textContent = `Selected: ${file.name}`; const reader = new FileReader(); reader.onload = (e) => { try { const csvContent = e.target.result; const parsedData = parseFuelCsv(csvContent); if (parsedData) { openCustomFuelModal(parsedData); fileInfo.textContent = `Imported ${file.name}. Review & Apply.`; } } catch (error) { console.error("Error reading/parsing CSV:", error); displayError("CSV Read/Parse Error: " + error.message); fileInfo.textContent = `Error processing ${file.name}.`; } finally { event.target.value = ''; } }; reader.onerror = () => { displayError("Error reading file."); fileInfo.textContent = 'Error reading file.'; event.target.value = ''; }; reader.readAsText(file);
+        }
+        function parseFuelCsv(csvContent) { const lines = csvContent.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split('\n').filter(line => line.trim() !== ''); if (lines.length === 0) { throw new Error("CSV file is empty."); } const fractions = {}; let headerSkipped = false; let componentsFound = 0; Object.keys(FUEL_COMPONENT_PROPERTIES).forEach(compName => { fractions[compName] = 0.0; }); for (let i = 0; i < lines.length; i++) { const line = lines[i].trim(); const columns = line.split(',').map(col => col.trim().replace(/^"|"$/g, '')); if (columns.length < 2) { console.warn(`Skipping CSV line ${i+1}: Not enough columns.`); continue; } const componentNameRaw = columns[0]; const fractionStr = columns[1]; const fraction = parseFloat(fractionStr); if (i === 0 && isNaN(fraction) && /\D/.test(componentNameRaw)) { console.log("Assuming header row."); headerSkipped = true; continue; } if (isNaN(fraction) || fraction < 0) { console.warn(`Skipping CSV line ${i+1}: Invalid/negative fraction '${fractionStr}' for '${componentNameRaw}'.`); continue; } const componentKey = findMatchingPropertyKey(componentNameRaw); if (componentKey) { fractions[componentKey] = fraction; componentsFound++; } else { console.warn(`Skipping unrecognized component '${componentNameRaw}' from CSV line ${i+1}.`); } } if (componentsFound === 0) { throw new Error("No valid component data found in CSV."); } console.log("Parsed fractions from CSV:", fractions); return { fractions }; }
+        function findMatchingPropertyKey(rawName) { const normRawName = rawName.toLowerCase().replace(/[\s_-]+/g, ''); for (const key in FUEL_COMPONENT_PROPERTIES) { const normKey = key.toLowerCase().replace(/[\s_]+/g, ''); if (normKey === normRawName) { return key; } } const manualMap = {'carbondioxide': 'CO2','co2': 'CO2','hydrogensulfide': 'Hydrogen_Sulfide','h2s': 'Hydrogen_Sulfide','hydrogen': 'Hydrogen','h2': 'Hydrogen','nitrogen': 'Nitrogen','n2': 'Nitrogen','oxygen': 'Oxygen_Argon','argon': 'Oxygen_Argon','o2': 'Oxygen_Argon','carbonmonoxide': 'CO','co': 'CO','methane': 'Methane','ch4': 'Methane','ethane': 'Ethane','c2h6': 'Ethane','ethylene': 'Ethylene','c2h4': 'Ethylene','propane': 'Propane','c3h8': 'Propane','propylene': 'Propylene','c3h6': 'Propylene','isobutane': 'Isobutane','ic4': 'Isobutane','ibutane': 'Isobutane','nbutane': 'n-Butane','nc4': 'n-Butane','butene': 'Butene','c4h8': 'Butene','isopentane': 'Isopentane','ic5': 'Isopentane','ipentane': 'Isopentane','npentane': 'n-Pentane','nc5': 'n-Pentane','c6+': 'C6+','hexanes+': 'C6+','c6plus': 'C6+'}; if (manualMap[normRawName]) { return manualMap[normRawName]; } return null; }
+        function exportCompositionCsv() { clearError(); try { const currentFractions = activeFuelComposition?.FRACTIONS; if (!currentFractions) { throw new Error("No active fuel composition to export."); } let csvContent = "Component,Mole Fraction\n"; Object.keys(FUEL_COMPONENT_PROPERTIES).forEach(compName => { const fraction = currentFractions[compName] || 0.0; const escapedName = `"${compName.replace(/_/g, " ").replace(/"/g, '""')}"`; csvContent += `${escapedName},${fraction.toFixed(5)}\n`; }); const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); const url = URL.createObjectURL(blob); const fuelSelect = document.getElementById('fuelCase'); let filename = "custom_fuel_composition.csv"; if (fuelSelect.value !== "Custom") { filename = `${fuelSelect.value.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_composition.csv`; } link.setAttribute("href", url); link.setAttribute("download", filename); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url); } catch (error) { console.error("Error exporting CSV:", error); displayError("CSV Export Error: " + error.message); } }
+
+    </script>
+</body>
+</html>
+
